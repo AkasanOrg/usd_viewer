@@ -1,0 +1,82 @@
+.file-tabs {
+  display: flex;
+  background: #1e1e2e;
+  border-bottom: 1px solid #333;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.file-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.file-tabs::-webkit-scrollbar-track {
+  background: #1e1e2e;
+}
+
+.file-tabs::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 2px;
+}
+
+.file-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #252536;
+  border-right: 1px solid #333;
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+  min-width: 80px;
+  max-width: 180px;
+}
+
+.file-tab:hover {
+  background: #2a2a3e;
+}
+
+.file-tab.active {
+  background: #2d2d44;
+  border-bottom: 2px solid #4a9eff;
+  margin-bottom: -1px;
+}
+
+.tab-name {
+  font-size: 12px;
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tab.active .tab-name {
+  color: #fff;
+}
+
+.dirty-indicator {
+  color: #f0a030;
+  font-size: 8px;
+}
+
+.tab-close {
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  margin-left: auto;
+}
+
+.file-tab:hover .tab-close,
+.file-tab.active .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  color: #ff6b6b;
+}

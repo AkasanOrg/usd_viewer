@@ -1,9 +1,9 @@
 import { useRef, useCallback } from 'react';
-import { readFileAsText, downloadAsFile, isValidUsdaFile } from '../utils/fileUtils';
+import { downloadAsFile, isValidUsdaFile } from '../utils/fileUtils';
 
 interface FileToolbarProps {
   currentFilename: string;
-  onImport: (content: string, filename: string) => void;
+  onImport: (files: FileList) => void;
   onExport: () => void;
   onRecordVideo: () => void;
   hasAnimation: boolean;
@@ -26,24 +26,33 @@ export function FileToolbar({
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
 
-    if (!isValidUsdaFile(file.name)) {
-      alert('Please select a .usda or .usd file');
-      return;
-    }
+      // Validate files
+      const validFiles: File[] = [];
+      for (const file of Array.from(files)) {
+        if (isValidUsdaFile(file.name)) {
+          validFiles.push(file);
+        }
+      }
 
-    try {
-      const content = await readFileAsText(file);
-      onImport(content, file.name);
-    } catch (err) {
-      alert('Failed to read file: ' + (err instanceof Error ? err.message : 'Unknown error'));
-    }
+      if (validFiles.length === 0) {
+        alert('Please select .usda or .usd files');
+        return;
+      }
 
-    event.target.value = '';
-  }, [onImport]);
+      // Create a new FileList-like object with only valid files
+      const dataTransfer = new DataTransfer();
+      validFiles.forEach((file) => dataTransfer.items.add(file));
+      onImport(dataTransfer.files);
+
+      event.target.value = '';
+    },
+    [onImport]
+  );
 
   return (
     <div className="file-toolbar">
@@ -51,14 +60,11 @@ export function FileToolbar({
         ref={fileInputRef}
         type="file"
         accept=".usda,.usd"
+        multiple
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
-      <button
-        className="toolbar-button"
-        onClick={handleImportClick}
-        title="Import USD file"
-      >
+      <button className="toolbar-button" onClick={handleImportClick} title="Import USD files">
         Import
       </button>
       <button
@@ -76,7 +82,8 @@ export function FileToolbar({
       >
         {isRecording ? (
           <>
-            Recording... {recordingProgress && `${recordingProgress.current}/${recordingProgress.total}`}
+            Recording...{' '}
+            {recordingProgress && `${recordingProgress.current}/${recordingProgress.total}`}
           </>
         ) : (
           'Record Video'

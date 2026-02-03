@@ -1,48 +1,33 @@
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef, useMemo } from 'react';
 import { UsdaEditor } from './components/UsdaEditor';
 import { UsdViewer } from './components/UsdViewer';
 import { FileToolbar, downloadAsFile } from './components/FileToolbar';
+import { FileTree } from './components/FileTree/FileTree';
+import { FileTabs } from './components/FileTabs/FileTabs';
+import { ErrorPanel } from './components/ErrorPanel';
+import { NewFileDialog } from './components/NewFileDialog';
+import { StageHierarchy } from './components/StageHierarchy/StageHierarchy';
+import { useWorkspace } from './stores/workspaceStore';
 import { useVideoRecorder } from './hooks/useVideoRecorder';
+import type { ParseError } from './types/virtualFileSystem';
+import type { ParsedPrim } from './parsers/usdaParser';
 import './App.css';
 
-const DEFAULT_USDA_CONTENT = `#usda 1.0
-(
-    defaultPrim = "World"
-    startTimeCode = 0
-    endTimeCode = 48
-)
-
-def Xform "World"
-{
-    def Sphere "AnimatedSphere"
-    {
-        double radius.timeSamples = {
-            0: 0.5,
-            24: 1.5,
-            48: 0.5,
-        }
-        double3 xformOp:translate.timeSamples = {
-            0: (0, 0, 0),
-            24: (2, 1, 0),
-            48: (0, 0, 0),
-        }
-        color3f[] primvars:displayColor = [(1.0, 0.3, 0.2)]
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-    }
-
-    def Cube "StaticCube"
-    {
-        double size = 0.5
-        double3 xformOp:translate = (-2, 0, 0)
-        color3f[] primvars:displayColor = [(0.2, 0.6, 1.0)]
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-    }
-}
-`;
-
 function App() {
-  const [usdaContent, setUsdaContent] = useState(DEFAULT_USDA_CONTENT);
-  const [currentFilename, setCurrentFilename] = useState('scene.usda');
+  const {
+    files,
+    activeFilePath,
+    openFilePaths,
+    createFile,
+    updateFileContent,
+    deleteFile,
+    toggleFileActive,
+    openFile,
+    closeFile,
+    setActiveFile,
+    importFiles,
+  } = useWorkspace();
+
   const [isRecording, setIsRecording] = useState(false);
   const [animationInfo, setAnimationInfo] = useState({
     hasAnimation: false,
@@ -50,32 +35,60 @@ function App() {
     endFrame: 0,
     currentFrame: 0,
   });
+  const [parseErrors, setParseErrors] = useState<ParseError[]>([]);
+  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
+  const [stagePrims, setStagePrims] = useState<ParsedPrim[]>([]);
+  const [selectedPrimPath, setSelectedPrimPath] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Get active file
+  const activeFile = activeFilePath ? files.get(activeFilePath) : null;
+  const activeContent = activeFile?.content ?? '';
+  const activeFilename = activeFile?.name ?? 'scene.usda';
+
+  // Get open files for tabs
+  const openFiles = useMemo(() => {
+    return openFilePaths
+      .map((path) => files.get(path))
+      .filter((f): f is NonNullable<typeof f> => f !== undefined);
+  }, [openFilePaths, files]);
+
   const { startRecording, stopRecording } = useVideoRecorder({
     fps: 24,
-    filename: currentFilename.replace(/\.(usda?|usd)$/i, '.webm'),
+    filename: activeFilename.replace(/\.(usda?|usd)$/i, '.webm'),
   });
 
-  const handleSave = useCallback((content: string) => {
-    setUsdaContent(content);
-  }, []);
+  const handleSave = useCallback(
+    (content: string) => {
+      if (activeFilePath) {
+        updateFileContent(activeFilePath, content);
+      }
+    },
+    [activeFilePath, updateFileContent]
+  );
 
-  const handleChange = useCallback((content: string | undefined) => {
-    if (content !== undefined) {
-      setUsdaContent(content);
-    }
-  }, []);
+  const handleChange = useCallback(
+    (content: string | undefined) => {
+      if (content !== undefined && activeFilePath) {
+        updateFileContent(activeFilePath, content);
+      }
+    },
+    [activeFilePath, updateFileContent]
+  );
 
-  const handleImport = useCallback((content: string, filename: string) => {
-    setUsdaContent(content);
-    setCurrentFilename(filename);
-  }, []);
+  const handleImport = useCallback(
+    async (fileList: FileList) => {
+      await importFiles(fileList);
+    },
+    [importFiles]
+  );
 
   const handleExport = useCallback(() => {
-    downloadAsFile(usdaContent, currentFilename);
-  }, [usdaContent, currentFilename]);
+    if (activeFile) {
+      downloadAsFile(activeFile.content, activeFile.name);
+    }
+  }, [activeFile]);
 
   const handleCanvasReady = useCallback((canvas: HTMLCanvasElement) => {
     canvasRef.current = canvas;
@@ -97,12 +110,41 @@ function App() {
     setAnimationInfo(info);
   }, []);
 
+  const handleErrors = useCallback((errors: ParseError[]) => {
+    setParseErrors(errors);
+  }, []);
+
+  const handleClearErrors = useCallback(() => {
+    setParseErrors([]);
+  }, []);
+
+  const handlePrimsChange = useCallback((prims: ParsedPrim[]) => {
+    setStagePrims(prims);
+  }, []);
+
+  const handlePrimSelect = useCallback((path: string) => {
+    setSelectedPrimPath(path);
+  }, []);
+
+  const handleCreateFile = useCallback(() => {
+    setShowNewFileDialog(true);
+  }, []);
+
+  const handleNewFileCreate = useCallback(
+    (path: string) => {
+      createFile(path);
+    },
+    [createFile]
+  );
+
+  const existingPaths = useMemo(() => Array.from(files.keys()), [files]);
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>USD Viewer</h1>
         <FileToolbar
-          currentFilename={currentFilename}
+          currentFilename={activeFilename}
           onImport={handleImport}
           onExport={handleExport}
           onRecordVideo={handleRecordVideo}
@@ -119,23 +161,70 @@ function App() {
         />
       </header>
       <main className="main-container">
-        <div className="editor-panel">
-          <UsdaEditor
-            initialValue={DEFAULT_USDA_CONTENT}
-            onSave={handleSave}
-            onChange={handleChange}
+        <aside className="sidebar">
+          <FileTree
+            files={files}
+            activeFilePath={activeFilePath}
+            onFileSelect={openFile}
+            onFileCreate={handleCreateFile}
+            onFileDelete={deleteFile}
+            onToggleFileActive={toggleFileActive}
           />
-        </div>
-        <div className="viewer-panel">
-          <UsdViewer
-            usdaContent={usdaContent}
-            onCanvasReady={handleCanvasReady}
-            isRecording={isRecording}
-            onRecordingComplete={handleRecordingComplete}
-            onAnimationInfo={handleAnimationInfo}
+        </aside>
+        <div className="workspace">
+          <FileTabs
+            openFiles={openFiles}
+            activeFilePath={activeFilePath}
+            onTabSelect={setActiveFile}
+            onTabClose={closeFile}
           />
+          <div className="workspace-content">
+            <div className="editor-panel">
+              {activeFile ? (
+                <UsdaEditor
+                  key={activeFilePath}
+                  initialValue={activeContent}
+                  onSave={handleSave}
+                  onChange={handleChange}
+                />
+              ) : (
+                <div className="no-file-message">
+                  No file selected. Create a new file or select one from the file tree.
+                </div>
+              )}
+            </div>
+            <div className="viewer-panel">
+              <div className="viewer-content">
+                <UsdViewer
+                  usdaContent={activeContent}
+                  currentFilePath={activeFilePath ?? '/'}
+                  files={files}
+                  onCanvasReady={handleCanvasReady}
+                  isRecording={isRecording}
+                  onRecordingComplete={handleRecordingComplete}
+                  onAnimationInfo={handleAnimationInfo}
+                  onErrors={handleErrors}
+                  onPrimsChange={handlePrimsChange}
+                />
+                {parseErrors.length > 0 && (
+                  <ErrorPanel errors={parseErrors} onClose={handleClearErrors} />
+                )}
+              </div>
+              <StageHierarchy
+                prims={stagePrims}
+                selectedPrim={selectedPrimPath}
+                onPrimSelect={handlePrimSelect}
+              />
+            </div>
+          </div>
         </div>
       </main>
+      <NewFileDialog
+        isOpen={showNewFileDialog}
+        onClose={() => setShowNewFileDialog(false)}
+        onCreate={handleNewFileCreate}
+        existingPaths={existingPaths}
+      />
     </div>
   );
 }
