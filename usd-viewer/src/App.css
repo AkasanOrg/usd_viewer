@@ -77,15 +77,66 @@
   overflow: hidden;
 }
 
+/* Sidebar - File Tree */
+.sidebar {
+  flex-shrink: 0;
+  width: 200px;
+  min-width: 150px;
+  max-width: 300px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e2e;
+  border-right: 1px solid #3c3c3c;
+}
+
+/* Workspace - Editor + Viewer area */
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.workspace-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
 .editor-panel {
   flex: 1;
   min-width: 300px;
   overflow: hidden;
   border-right: 1px solid #3c3c3c;
+  display: flex;
+  flex-direction: column;
 }
 
 .viewer-panel {
   flex: 1;
   min-width: 300px;
   overflow: hidden;
+  position: relative;
+  display: flex;
+}
+
+.viewer-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* No file selected message */
+.no-file-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  font-size: 14px;
+  text-align: center;
+  padding: 20px;
+  background: #1e1e1e;
 }

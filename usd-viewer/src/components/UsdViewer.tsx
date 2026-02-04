@@ -2,318 +2,14 @@ import { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
-
-type TimeSamples<T> = Map<number, T>;
-
-interface ParsedPrim {
-  type: 'Sphere' | 'Cube' | 'Cylinder' | 'Cone' | 'Xform';
-  name: string;
-  radius?: number;
-  radiusTimeSamples?: TimeSamples<number>;
-  size?: number;
-  sizeTimeSamples?: TimeSamples<number>;
-  height?: number;
-  heightTimeSamples?: TimeSamples<number>;
-  color?: [number, number, number];
-  colorTimeSamples?: TimeSamples<[number, number, number]>;
-  position?: [number, number, number];
-  positionTimeSamples?: TimeSamples<[number, number, number]>;
-  rotation?: [number, number, number];
-  rotationTimeSamples?: TimeSamples<[number, number, number]>;
-  scale?: [number, number, number];
-  scaleTimeSamples?: TimeSamples<[number, number, number]>;
-  children?: ParsedPrim[];
-}
-
-function interpolateValue(timeSamples: TimeSamples<number>, frame: number): number {
-  const times = Array.from(timeSamples.keys()).sort((a, b) => a - b);
-  if (times.length === 0) return 0;
-  if (frame <= times[0]) return timeSamples.get(times[0])!;
-  if (frame >= times[times.length - 1]) return timeSamples.get(times[times.length - 1])!;
-
-  for (let i = 0; i < times.length - 1; i++) {
-    if (frame >= times[i] && frame <= times[i + 1]) {
-      const t = (frame - times[i]) / (times[i + 1] - times[i]);
-      const v0 = timeSamples.get(times[i])!;
-      const v1 = timeSamples.get(times[i + 1])!;
-      return v0 + (v1 - v0) * t;
-    }
-  }
-  return timeSamples.get(times[0])!;
-}
-
-function interpolateVector3(
-  timeSamples: TimeSamples<[number, number, number]>,
-  frame: number
-): [number, number, number] {
-  const times = Array.from(timeSamples.keys()).sort((a, b) => a - b);
-  if (times.length === 0) return [0, 0, 0];
-  if (frame <= times[0]) return timeSamples.get(times[0])!;
-  if (frame >= times[times.length - 1]) return timeSamples.get(times[times.length - 1])!;
-
-  for (let i = 0; i < times.length - 1; i++) {
-    if (frame >= times[i] && frame <= times[i + 1]) {
-      const t = (frame - times[i]) / (times[i + 1] - times[i]);
-      const v0 = timeSamples.get(times[i])!;
-      const v1 = timeSamples.get(times[i + 1])!;
-      return [
-        v0[0] + (v1[0] - v0[0]) * t,
-        v0[1] + (v1[1] - v0[1]) * t,
-        v0[2] + (v1[2] - v0[2]) * t,
-      ];
-    }
-  }
-  return timeSamples.get(times[0])!;
-}
-
-function getTimeRange(prims: ParsedPrim[]): { startFrame: number; endFrame: number } {
-  let minFrame = Infinity;
-  let maxFrame = -Infinity;
-
-  function collectTimes(prim: ParsedPrim) {
-    const allTimeSamples = [
-      prim.radiusTimeSamples,
-      prim.sizeTimeSamples,
-      prim.heightTimeSamples,
-      prim.colorTimeSamples,
-      prim.positionTimeSamples,
-      prim.rotationTimeSamples,
-      prim.scaleTimeSamples,
-    ];
-
-    for (const ts of allTimeSamples) {
-      if (ts) {
-        for (const time of ts.keys()) {
-          minFrame = Math.min(minFrame, time);
-          maxFrame = Math.max(maxFrame, time);
-        }
-      }
-    }
-
-    prim.children?.forEach(collectTimes);
-  }
-
-  prims.forEach(collectTimes);
-
-  if (minFrame === Infinity) {
-    return { startFrame: 0, endFrame: 0 };
-  }
-  return { startFrame: minFrame, endFrame: maxFrame };
-}
-
-function parseTimeSamplesScalar(content: string, startIndex: number): { samples: TimeSamples<number>; endIndex: number } {
-  const samples = new Map<number, number>();
-  let i = startIndex;
-  const lines = content.split('\n');
-
-  while (i < lines.length) {
-    const line = lines[i].trim();
-    if (line === '}') break;
-
-    const sampleMatch = line.match(/^([\d.-]+)\s*:\s*([\d.-]+),?$/);
-    if (sampleMatch) {
-      const time = parseFloat(sampleMatch[1]);
-      const value = parseFloat(sampleMatch[2]);
-      samples.set(time, value);
-    }
-    i++;
-  }
-
-  return { samples, endIndex: i };
-}
-
-function parseTimeSamplesVector3(
-  content: string,
-  startIndex: number,
-  convertToRadians = false
-): { samples: TimeSamples<[number, number, number]>; endIndex: number } {
-  const samples = new Map<number, [number, number, number]>();
-  let i = startIndex;
-  const lines = content.split('\n');
-
-  while (i < lines.length) {
-    const line = lines[i].trim();
-    if (line === '}') break;
-
-    const sampleMatch = line.match(/^([\d.-]+)\s*:\s*\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\),?$/);
-    if (sampleMatch) {
-      const time = parseFloat(sampleMatch[1]);
-      let values: [number, number, number] = [
-        parseFloat(sampleMatch[2]),
-        parseFloat(sampleMatch[3]),
-        parseFloat(sampleMatch[4]),
-      ];
-      if (convertToRadians) {
-        values = [
-          THREE.MathUtils.degToRad(values[0]),
-          THREE.MathUtils.degToRad(values[1]),
-          THREE.MathUtils.degToRad(values[2]),
-        ];
-      }
-      samples.set(time, values);
-    }
-    i++;
-  }
-
-  return { samples, endIndex: i };
-}
-
-function parseUsda(content: string): ParsedPrim[] {
-  const prims: ParsedPrim[] = [];
-  const stack: { prim: ParsedPrim; indent: number }[] = [];
-
-  const lines = content.split('\n');
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trimStart();
-    const indent = line.length - trimmed.length;
-
-    // Match def statements
-    const defMatch = trimmed.match(/^def\s+(\w+)\s+"([^"]+)"/);
-    if (defMatch) {
-      const [, primType, primName] = defMatch;
-      const newPrim: ParsedPrim = {
-        type: primType as ParsedPrim['type'],
-        name: primName,
-        children: [],
-      };
-
-      // Pop stack to find parent
-      while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
-        stack.pop();
-      }
-
-      if (stack.length > 0) {
-        stack[stack.length - 1].prim.children?.push(newPrim);
-      } else {
-        prims.push(newPrim);
-      }
-
-      stack.push({ prim: newPrim, indent });
-      continue;
-    }
-
-    // Parse attributes for current prim
-    if (stack.length > 0) {
-      const currentPrim = stack[stack.length - 1].prim;
-
-      // Radius with timeSamples
-      const radiusTimeSamplesMatch = trimmed.match(/(?:double|float)\s+radius\.timeSamples\s*=\s*\{/);
-      if (radiusTimeSamplesMatch) {
-        const { samples, endIndex } = parseTimeSamplesScalar(content, i + 1);
-        currentPrim.radiusTimeSamples = samples;
-        i = endIndex;
-        continue;
-      }
-
-      // Radius
-      const radiusMatch = trimmed.match(/(?:double|float)\s+radius\s*=\s*([\d.]+)/);
-      if (radiusMatch) {
-        currentPrim.radius = parseFloat(radiusMatch[1]);
-      }
-
-      // Size with timeSamples
-      const sizeTimeSamplesMatch = trimmed.match(/(?:double|float)\s+size\.timeSamples\s*=\s*\{/);
-      if (sizeTimeSamplesMatch) {
-        const { samples, endIndex } = parseTimeSamplesScalar(content, i + 1);
-        currentPrim.sizeTimeSamples = samples;
-        i = endIndex;
-        continue;
-      }
-
-      // Size
-      const sizeMatch = trimmed.match(/(?:double|float)\s+size\s*=\s*([\d.]+)/);
-      if (sizeMatch) {
-        currentPrim.size = parseFloat(sizeMatch[1]);
-      }
-
-      // Height with timeSamples
-      const heightTimeSamplesMatch = trimmed.match(/(?:double|float)\s+height\.timeSamples\s*=\s*\{/);
-      if (heightTimeSamplesMatch) {
-        const { samples, endIndex } = parseTimeSamplesScalar(content, i + 1);
-        currentPrim.heightTimeSamples = samples;
-        i = endIndex;
-        continue;
-      }
-
-      // Height
-      const heightMatch = trimmed.match(/(?:double|float)\s+height\s*=\s*([\d.]+)/);
-      if (heightMatch) {
-        currentPrim.height = parseFloat(heightMatch[1]);
-      }
-
-      // Color
-      const colorMatch = trimmed.match(/color3f\[\]\s+primvars:displayColor\s*=\s*\[\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)\s*\]/);
-      if (colorMatch) {
-        currentPrim.color = [
-          parseFloat(colorMatch[1]),
-          parseFloat(colorMatch[2]),
-          parseFloat(colorMatch[3]),
-        ];
-      }
-
-      // Translation with timeSamples
-      const translateTimeSamplesMatch = trimmed.match(/double3\s+xformOp:translate\.timeSamples\s*=\s*\{/);
-      if (translateTimeSamplesMatch) {
-        const { samples, endIndex } = parseTimeSamplesVector3(content, i + 1);
-        currentPrim.positionTimeSamples = samples;
-        i = endIndex;
-        continue;
-      }
-
-      // Translation/Position
-      const translateMatch = trimmed.match(/double3\s+xformOp:translate\s*=\s*\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/);
-      if (translateMatch) {
-        currentPrim.position = [
-          parseFloat(translateMatch[1]),
-          parseFloat(translateMatch[2]),
-          parseFloat(translateMatch[3]),
-        ];
-      }
-
-      // Rotation with timeSamples
-      const rotateTimeSamplesMatch = trimmed.match(/float3\s+xformOp:rotateXYZ\.timeSamples\s*=\s*\{/);
-      if (rotateTimeSamplesMatch) {
-        const { samples, endIndex } = parseTimeSamplesVector3(content, i + 1, true);
-        currentPrim.rotationTimeSamples = samples;
-        i = endIndex;
-        continue;
-      }
-
-      // Rotation
-      const rotateMatch = trimmed.match(/float3\s+xformOp:rotateXYZ\s*=\s*\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/);
-      if (rotateMatch) {
-        currentPrim.rotation = [
-          THREE.MathUtils.degToRad(parseFloat(rotateMatch[1])),
-          THREE.MathUtils.degToRad(parseFloat(rotateMatch[2])),
-          THREE.MathUtils.degToRad(parseFloat(rotateMatch[3])),
-        ];
-      }
-
-      // Scale with timeSamples
-      const scaleTimeSamplesMatch = trimmed.match(/float3\s+xformOp:scale\.timeSamples\s*=\s*\{/);
-      if (scaleTimeSamplesMatch) {
-        const { samples, endIndex } = parseTimeSamplesVector3(content, i + 1);
-        currentPrim.scaleTimeSamples = samples;
-        i = endIndex;
-        continue;
-      }
-
-      // Scale
-      const scaleMatch = trimmed.match(/float3\s+xformOp:scale\s*=\s*\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/);
-      if (scaleMatch) {
-        currentPrim.scale = [
-          parseFloat(scaleMatch[1]),
-          parseFloat(scaleMatch[2]),
-          parseFloat(scaleMatch[3]),
-        ];
-      }
-    }
-  }
-
-  return prims;
-}
+import type { VirtualFile, ParseError } from '../types/virtualFileSystem';
+import {
+  type ParsedPrim,
+  interpolateValue,
+  interpolateVector3,
+  getTimeRange,
+} from '../parsers/usdaParser';
+import { parseAndResolve } from '../parsers/referenceResolver';
 
 interface PrimMeshProps {
   prim: ParsedPrim;
@@ -323,7 +19,13 @@ interface PrimMeshProps {
   parentScale?: [number, number, number];
 }
 
-function PrimMesh({ prim, currentFrame, parentPosition = [0, 0, 0], parentRotation = [0, 0, 0], parentScale = [1, 1, 1] }: PrimMeshProps) {
+function PrimMesh({
+  prim,
+  currentFrame,
+  parentPosition = [0, 0, 0],
+  parentRotation = [0, 0, 0],
+  parentScale = [1, 1, 1],
+}: PrimMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
   // Get position from timeSamples or static value
@@ -387,13 +89,21 @@ function PrimMesh({ prim, currentFrame, parentPosition = [0, 0, 0], parentRotati
         const s = size ?? 1;
         return <boxGeometry args={[s, s, s]} />;
       case 'Cylinder':
-        return <cylinderGeometry args={[radius ?? 0.5, radius ?? 0.5, height ?? 1, 32]} />;
+        return (
+          <cylinderGeometry args={[radius ?? 0.5, radius ?? 0.5, height ?? 1, 32]} />
+        );
       case 'Cone':
         return <coneGeometry args={[radius ?? 0.5, height ?? 1, 32]} />;
       default:
         return null;
     }
   }, [prim.type, radius, size, height]);
+
+  // Combine regular children and resolved children from references
+  const allChildren = [
+    ...(prim.children || []),
+    ...(prim.resolvedChildren || []),
+  ];
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
@@ -403,7 +113,7 @@ function PrimMesh({ prim, currentFrame, parentPosition = [0, 0, 0], parentRotati
           <meshStandardMaterial color={new THREE.Color(color[0], color[1], color[2])} />
         </mesh>
       )}
-      {prim.children?.map((child, index) => (
+      {allChildren.map((child, index) => (
         <PrimMesh key={`${child.name}-${index}`} prim={child} currentFrame={currentFrame} />
       ))}
     </group>
@@ -561,9 +271,7 @@ function TimelineControls({
           textAlign: 'center',
         }}
       >
-        {hasAnimation
-          ? `${currentFrame.toFixed(1)} / ${endFrame}`
-          : 'No animation'}
+        {hasAnimation ? `${currentFrame.toFixed(1)} / ${endFrame}` : 'No animation'}
       </span>
       <span
         style={{
@@ -633,31 +341,54 @@ function AnimationPlayer({
 
 interface UsdViewerProps {
   usdaContent: string;
+  currentFilePath: string;
+  files: Map<string, VirtualFile>;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
   isRecording?: boolean;
   onRecordingComplete?: () => void;
-  onAnimationInfo?: (info: { hasAnimation: boolean; startFrame: number; endFrame: number; currentFrame: number }) => void;
+  onAnimationInfo?: (info: {
+    hasAnimation: boolean;
+    startFrame: number;
+    endFrame: number;
+    currentFrame: number;
+  }) => void;
+  onErrors?: (errors: ParseError[]) => void;
+  onPrimsChange?: (prims: ParsedPrim[]) => void;
 }
 
 export function UsdViewer({
   usdaContent,
+  currentFilePath,
+  files,
   onCanvasReady,
   isRecording = false,
   onRecordingComplete,
   onAnimationInfo,
+  onErrors,
+  onPrimsChange,
 }: UsdViewerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [fps] = useState(24);
 
-  const prims = useMemo(() => {
+  const { prims, errors } = useMemo(() => {
     try {
-      return parseUsda(usdaContent);
+      return parseAndResolve(usdaContent, currentFilePath, files);
     } catch (error) {
       console.error('Failed to parse USDA:', error);
-      return [];
+      return { prims: [], errors: [] };
     }
-  }, [usdaContent]);
+  }, [usdaContent, currentFilePath, files]);
+
+  // Report errors to parent
+  useEffect(() => {
+    onErrors?.(errors);
+  }, [errors, onErrors]);
+
+  // Report prims to parent
+  useEffect(() => {
+    onPrimsChange?.(prims);
+  }, [prims, onPrimsChange]);
 
   const { startFrame, endFrame } = useMemo(() => getTimeRange(prims), [prims]);
   const hasAnimation = endFrame > startFrame;
