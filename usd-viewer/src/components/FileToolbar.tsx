@@ -6,6 +6,7 @@ interface FileToolbarProps {
   onImport: (files: FileList) => void;
   onExport: () => void;
   onRecordVideo: () => void;
+  onResetStorage: () => void;
   hasAnimation: boolean;
   isRecording: boolean;
   recordingProgress?: { current: number; total: number };
@@ -16,6 +17,7 @@ export function FileToolbar({
   onImport,
   onExport,
   onRecordVideo,
+  onResetStorage,
   hasAnimation,
   isRecording,
   recordingProgress,
@@ -88,6 +90,13 @@ export function FileToolbar({
         ) : (
           'Record Video'
         )}
+      </button>
+      <button
+        className="toolbar-button reset-button"
+        onClick={onResetStorage}
+        title="Reset to default files (clears local storage)"
+      >
+        Reset
       </button>
     </div>
   );

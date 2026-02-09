@@ -140,3 +140,27 @@
   padding: 20px;
   background: #1e1e1e;
 }
+
+/* Loading state */
+.app.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1e1e1e;
+}
+
+.loading-message {
+  color: #888;
+  font-size: 16px;
+}
+
+/* Reset button */
+.toolbar-button.reset-button {
+  background: #4a3030;
+  border-color: #6a4040;
+}
+
+.toolbar-button.reset-button:hover:not(:disabled) {
+  background: #5a3838;
+  border-color: #7a5050;
+}

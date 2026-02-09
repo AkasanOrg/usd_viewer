@@ -26,6 +26,8 @@ function App() {
     closeFile,
     setActiveFile,
     importFiles,
+    resetToDefaults,
+    isLoading,
   } = useWorkspace();
 
   const [isRecording, setIsRecording] = useState(false);
@@ -90,6 +92,12 @@ function App() {
     }
   }, [activeFile]);
 
+  const handleResetStorage = useCallback(async () => {
+    if (window.confirm('Reset to default files? All changes will be lost.')) {
+      await resetToDefaults();
+    }
+  }, [resetToDefaults]);
+
   const handleCanvasReady = useCallback((canvas: HTMLCanvasElement) => {
     canvasRef.current = canvas;
   }, []);
@@ -139,6 +147,14 @@ function App() {
 
   const existingPaths = useMemo(() => Array.from(files.keys()), [files]);
 
+  if (isLoading) {
+    return (
+      <div className="app loading">
+        <div className="loading-message">Loading files from storage...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -148,6 +164,7 @@ function App() {
           onImport={handleImport}
           onExport={handleExport}
           onRecordVideo={handleRecordVideo}
+          onResetStorage={handleResetStorage}
           hasAnimation={animationInfo.hasAnimation}
           isRecording={isRecording}
           recordingProgress={

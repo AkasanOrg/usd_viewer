@@ -1,0 +1,21 @@
+#usda 1.0
+(
+    defaultPrim = "Shapes"
+)
+
+def Xform "Shapes"
+{
+    def Sphere "GreenSphere"
+    {
+        double radius = 0.5
+        color3f[] primvars:displayColor = [(0.2, 0.8, 0.3)]
+    }
+
+    def Sphere "YellowSphere"
+    {
+        double radius = 0.3
+        double3 xformOp:translate = (0, 1, 0)
+        color3f[] primvars:displayColor = [(1.0, 0.9, 0.2)]
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}

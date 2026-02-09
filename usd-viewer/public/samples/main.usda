@@ -1,0 +1,44 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    startTimeCode = 0
+    endTimeCode = 48
+)
+
+def Xform "World"
+{
+    # Direct sphere with animation
+    def Sphere "AnimatedSphere"
+    {
+        double radius.timeSamples = {
+            0: 0.5,
+            24: 1.5,
+            48: 0.5,
+        }
+        double3 xformOp:translate.timeSamples = {
+            0: (0, 0, 0),
+            24: (2, 1, 0),
+            48: (0, 0, 0),
+        }
+        color3f[] primvars:displayColor = [(1.0, 0.3, 0.2)]
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    # Referenced cube from another file
+    # Create /models/cube.usda to see this reference work!
+    def "RefCube" (
+        references = @./models/cube.usda@
+    ) {
+        double3 xformOp:translate = (-3, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    # Referenced sphere from another file with prim path
+    # Create /models/shapes.usda to see this reference work!
+    def "RefSphere" (
+        references = @./models/shapes.usda@</Shapes/GreenSphere>
+    ) {
+        double3 xformOp:translate = (3, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
