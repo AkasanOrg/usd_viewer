@@ -147,7 +147,7 @@ function App() {
 
   const existingPaths = useMemo(() => Array.from(files.keys()), [files]);
 
-  // Add beforeunload handler to confirm page reload
+  // Add beforeunload handler to confirm page reload and reset content
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       // Show confirmation dialog before page reload
@@ -156,12 +156,19 @@ function App() {
       event.returnValue = '';
     };
 
+    const handleUnload = () => {
+      // Clear storage on page unload to reset to default content on next load
+      resetToDefaults();
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleUnload);
     };
-  }, []);
+  }, [resetToDefaults]);
 
   if (isLoading) {
     return (
