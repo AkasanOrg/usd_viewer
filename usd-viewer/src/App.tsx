@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useMemo } from 'react';
+import { useCallback, useState, useRef, useMemo, useEffect } from 'react';
 import { UsdaEditor } from './components/UsdaEditor';
 import { UsdViewer } from './components/UsdViewer';
 import { FileToolbar, downloadAsFile } from './components/FileToolbar';
@@ -146,6 +146,22 @@ function App() {
   );
 
   const existingPaths = useMemo(() => Array.from(files.keys()), [files]);
+
+  // Add beforeunload handler to confirm page reload
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Show confirmation dialog before page reload
+      event.preventDefault();
+      // Modern browsers ignore the custom message and show their own
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   if (isLoading) {
     return (
