@@ -1,4 +1,5 @@
 import { useCallback, useState, useRef, useMemo } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { UsdaEditor } from './components/UsdaEditor';
 import { UsdViewer } from './components/UsdViewer';
 import { FileToolbar, downloadAsFile } from './components/FileToolbar';
@@ -242,6 +243,7 @@ function App() {
         onCreate={handleNewFileCreate}
         existingPaths={existingPaths}
       />
+      <Analytics />
     </div>
   );
 }
