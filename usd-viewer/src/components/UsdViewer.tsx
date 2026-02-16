@@ -28,6 +28,11 @@ function PrimMesh({
 }: PrimMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
+  // USD active flag - if false, prim should not be rendered
+  if (prim.active === false) {
+    return null;
+  }
+
   // Get position from timeSamples or static value
   const primPosition = prim.positionTimeSamples
     ? interpolateVector3(prim.positionTimeSamples, currentFrame)

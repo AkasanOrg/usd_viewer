@@ -274,6 +274,7 @@ export function parseUsda(content: string): ParsedPrim[] {
     const indent = line.length - trimmed.length;
 
     // Check if this is a def statement with multiline metadata
+    // Case 1: def Sphere "Name" (
     const defStartMatch = trimmed.match(/^def\s+(?:(\w+)\s+)?"([^"]+)"\s*\(/);
     if (defStartMatch && !trimmed.includes(')')) {
       // Multiline metadata - collect all lines until closing paren
@@ -288,7 +289,7 @@ export function parseUsda(content: string): ParsedPrim[] {
       const defInfo = parseDefStatement(cleanMetadata);
       console.log('[parseUsda] parseDefStatement result:', defInfo);
       if (defInfo) {
-        console.log('[parseUsda] Parsed multiline prim:', defInfo.name, 'type:', defInfo.type, 'references:', defInfo.references, 'indent:', indent);
+        console.log('[parseUsda] Parsed multiline prim:', defInfo.name, 'type:', defInfo.type, 'active:', defInfo.active, 'references:', defInfo.references, 'indent:', indent);
         const newPrim: ParsedPrim = {
           type: defInfo.type as ParsedPrim['type'],
           name: defInfo.name,
@@ -313,10 +314,54 @@ export function parseUsda(content: string): ParsedPrim[] {
       continue;
     }
 
+    // Case 2: def Sphere "Name" on one line, then ( on next line
+    const defWithoutParenMatch = trimmed.match(/^def\s+(?:(\w+)\s+)?"([^"]+)"\s*$/);
+    if (defWithoutParenMatch && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trimStart();
+      if (nextLine.startsWith('(')) {
+        // Multiline metadata with ( on next line
+        console.log('[parseUsda] Found def with metadata on next line at', i, ':', trimmed);
+        const { metadata, endIndex } = parseMultilineMetadata(lines, i + 1);
+        console.log('[parseUsda] Collected metadata:', metadata.replace(/\n/g, ' '));
+        i = endIndex;
+
+        // Combine def line with metadata
+        const fullDef = `def ${defWithoutParenMatch[1] || ''} "${defWithoutParenMatch[2]}" ${metadata}`.trim();
+        const cleanMetadata = fullDef.replace(/\n/g, ' ').replace(/\s*\{\s*$/, '').trim();
+        console.log('[parseUsda] Clean metadata:', cleanMetadata);
+        const defInfo = parseDefStatement(cleanMetadata);
+        console.log('[parseUsda] parseDefStatement result:', defInfo);
+        if (defInfo) {
+          console.log('[parseUsda] Parsed multiline prim:', defInfo.name, 'type:', defInfo.type, 'active:', defInfo.active, 'references:', defInfo.references, 'indent:', indent);
+          const newPrim: ParsedPrim = {
+            type: defInfo.type as ParsedPrim['type'],
+            name: defInfo.name,
+            active: defInfo.active,
+            children: [],
+            references: defInfo.references,
+            payloads: defInfo.payloads,
+          };
+
+          while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+            stack.pop();
+          }
+
+          if (stack.length > 0) {
+            stack[stack.length - 1].prim.children?.push(newPrim);
+          } else {
+            prims.push(newPrim);
+          }
+
+          stack.push({ prim: newPrim, indent });
+        }
+        continue;
+      }
+    }
+
     // Match def statements with optional metadata (single line)
     const defInfo = parseDefStatement(trimmed);
     if (defInfo) {
-      console.log('[parseUsda] Found prim:', defInfo.name, 'type:', defInfo.type, 'references:', defInfo.references, 'indent:', indent);
+      console.log('[parseUsda] Found prim:', defInfo.name, 'type:', defInfo.type, 'active:', defInfo.active, 'references:', defInfo.references, 'indent:', indent);
       const newPrim: ParsedPrim = {
         type: defInfo.type as ParsedPrim['type'],
         name: defInfo.name,
