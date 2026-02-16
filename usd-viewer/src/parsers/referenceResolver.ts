@@ -59,6 +59,8 @@ function resolveReferencesForPrim(
 
     for (const ref of prim.references) {
       const absolutePath = resolveRelativePath(context.currentFilePath, ref.assetPath);
+      console.log(`[ReferenceResolver] Resolving reference: ${ref.assetPath} -> ${absolutePath}`);
+      console.log(`[ReferenceResolver] Available files:`, Array.from(context.files.keys()));
 
       // Circular reference detection
       if (context.visitedPaths.has(absolutePath)) {
@@ -73,6 +75,7 @@ function resolveReferencesForPrim(
       // File existence check
       const referencedFile = context.files.get(absolutePath);
       if (!referencedFile) {
+        console.error(`[ReferenceResolver] File not found: ${absolutePath}`);
         context.errors.push({
           type: 'missing_file',
           message: `Referenced file not found: ${ref.assetPath} (resolved to ${absolutePath})`,
@@ -80,6 +83,7 @@ function resolveReferencesForPrim(
         });
         continue;
       }
+      console.log(`[ReferenceResolver] Found file: ${absolutePath}`);
 
       // Skip inactive files
       if (!referencedFile.active) {
@@ -223,10 +227,16 @@ export function parseAndResolve(
   currentFilePath: string,
   files: Map<string, VirtualFile>
 ): { prims: ParsedPrim[]; errors: ParseError[] } {
+  console.log('[parseAndResolve] Starting parse for:', currentFilePath);
+  console.log('[parseAndResolve] Content length:', content.length);
   const errors: ParseError[] = [];
 
   try {
     const parsedPrims = parseUsda(content);
+    console.log('[parseAndResolve] Parsed prims:', parsedPrims.length);
+    parsedPrims.forEach(prim => {
+      console.log('[parseAndResolve] Prim:', prim.name, 'type:', prim.type, 'references:', prim.references?.length || 0);
+    });
 
     const context: ParseContext = {
       currentFilePath,

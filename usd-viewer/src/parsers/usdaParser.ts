@@ -216,8 +216,10 @@ function parseDefStatement(line: string): {
     // Parse references
     const referencesMatch = metadata.match(/references\s*=\s*(@[^@]+@(?:<[^>]+>)?)/);
     if (referencesMatch) {
+      console.log('[UsdaParser] Found reference metadata:', referencesMatch[1]);
       const ref = parseAssetReference(referencesMatch[1]);
       if (ref) {
+        console.log('[UsdaParser] Parsed reference:', ref);
         result.references = [ref];
       }
     }
@@ -259,10 +261,12 @@ function parseMultilineMetadata(
 }
 
 export function parseUsda(content: string): ParsedPrim[] {
+  console.log('[parseUsda] Starting parse, content length:', content.length);
   const prims: ParsedPrim[] = [];
   const stack: { prim: ParsedPrim; indent: number }[] = [];
 
   const lines = content.split('\n');
+  console.log('[parseUsda] Total lines:', lines.length);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -273,11 +277,18 @@ export function parseUsda(content: string): ParsedPrim[] {
     const defStartMatch = trimmed.match(/^def\s+(?:(\w+)\s+)?"([^"]+)"\s*\(/);
     if (defStartMatch && !trimmed.includes(')')) {
       // Multiline metadata - collect all lines until closing paren
+      console.log('[parseUsda] Found multiline metadata starting at line', i, ':', trimmed);
       const { metadata, endIndex } = parseMultilineMetadata(lines, i);
+      console.log('[parseUsda] Collected metadata:', metadata.replace(/\n/g, ' '));
       i = endIndex;
 
-      const defInfo = parseDefStatement(metadata.replace(/\n/g, ' '));
+      // Remove trailing { from metadata before parsing
+      const cleanMetadata = metadata.replace(/\n/g, ' ').replace(/\s*\{\s*$/, '').trim();
+      console.log('[parseUsda] Clean metadata:', cleanMetadata);
+      const defInfo = parseDefStatement(cleanMetadata);
+      console.log('[parseUsda] parseDefStatement result:', defInfo);
       if (defInfo) {
+        console.log('[parseUsda] Parsed multiline prim:', defInfo.name, 'type:', defInfo.type, 'references:', defInfo.references, 'indent:', indent);
         const newPrim: ParsedPrim = {
           type: defInfo.type as ParsedPrim['type'],
           name: defInfo.name,
@@ -305,6 +316,7 @@ export function parseUsda(content: string): ParsedPrim[] {
     // Match def statements with optional metadata (single line)
     const defInfo = parseDefStatement(trimmed);
     if (defInfo) {
+      console.log('[parseUsda] Found prim:', defInfo.name, 'type:', defInfo.type, 'references:', defInfo.references, 'indent:', indent);
       const newPrim: ParsedPrim = {
         type: defInfo.type as ParsedPrim['type'],
         name: defInfo.name,
@@ -320,8 +332,10 @@ export function parseUsda(content: string): ParsedPrim[] {
       }
 
       if (stack.length > 0) {
+        console.log('[parseUsda] Adding as child to:', stack[stack.length - 1].prim.name);
         stack[stack.length - 1].prim.children?.push(newPrim);
       } else {
+        console.log('[parseUsda] Adding as root prim');
         prims.push(newPrim);
       }
 
