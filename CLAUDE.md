@@ -13,12 +13,39 @@ USD Viewer - A code editor and visualization tool for USDA (Universal Scene Desc
 
 ## Current Status
 
-This project is in the initial planning phase. No build system, test framework, or source code has been set up yet.
+Active development. The project now includes:
 
-## Development Setup (To Be Implemented)
+- React + Vite frontend setup
+- Monaco Editor integration for USDA editing
+- Three.js + React Three Fiber for USD preview
+- **OPFS (Origin Private File System)** for file storage - allows USD Reference and Payload features to work as if files are stored on disk
+- USD parser with Reference and Payload resolution
+- Virtual file system with directory structure support
 
-When setting up this project, consider:
-- Frontend framework for the UI
-- Code editor library (Monaco, CodeMirror, etc.) for USDA editing
-- USD parsing/rendering library for real-time preview
-- Build tool configuration
+## Development Setup
+
+```bash
+cd usd-viewer
+npm install
+npm run dev
+```
+
+## Technical Details
+
+### File Storage - OPFS (Origin Private File System)
+
+The application uses OPFS for file storage, providing several advantages:
+
+1. **File System Semantics**: Files are stored with proper directory structure, making USD Reference and Payload work naturally
+2. **Performance**: Faster read/write compared to IndexedDB, especially for large files
+3. **Standard API**: Uses the File System Access API standard
+4. **Privacy**: Files are stored in origin-private storage, isolated from other sites
+
+### Browser Compatibility
+
+OPFS requires modern browsers:
+- Chrome/Edge 86+
+- Safari 15.2+
+- Firefox 111+
+
+The application checks for OPFS support on startup.

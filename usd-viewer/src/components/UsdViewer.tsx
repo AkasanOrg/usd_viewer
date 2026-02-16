@@ -372,8 +372,14 @@ export function UsdViewer({
   const [fps] = useState(24);
 
   const { prims, errors } = useMemo(() => {
+    console.log('[UsdViewer] Parsing USDA, currentFilePath:', currentFilePath);
+    console.log('[UsdViewer] Content length:', usdaContent.length);
+    console.log('[UsdViewer] Files available:', Array.from(files.keys()));
+    console.log('[UsdViewer] Content preview:', usdaContent.substring(0, 200));
     try {
-      return parseAndResolve(usdaContent, currentFilePath, files);
+      const result = parseAndResolve(usdaContent, currentFilePath, files);
+      console.log('[UsdViewer] Parse result - prims:', result.prims.length, 'errors:', result.errors.length);
+      return result;
     } catch (error) {
       console.error('Failed to parse USDA:', error);
       return { prims: [], errors: [] };

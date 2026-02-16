@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { VirtualFile, WorkspaceStore, ParseError } from '../types/virtualFileSystem';
 import {
-  saveFileToStorage,
-  loadFilesFromStorage,
-  deleteFileFromStorage,
-  clearStorage,
-  hasStoredFiles,
-} from '../utils/indexedDB';
+  saveFileToOPFS,
+  loadAllFilesFromOPFS,
+  deleteFileFromOPFS,
+  clearOPFS,
+  hasOPFSFiles,
+  isOPFSSupported,
+} from '../utils/opfs';
 
 // Generate unique ID
 function generateId(): string {
@@ -81,15 +82,33 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [errors, setErrorsState] = useState<ParseError[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize: load files from IndexedDB or load samples
+  // Initialize: load files from OPFS or load samples
   useEffect(() => {
     async function initializeFiles() {
+      // Check OPFS support
+      if (!isOPFSSupported()) {
+        console.error('OPFS is not supported in this browser. Please use a modern browser (Chrome 86+, Safari 15.2+, Firefox 111+).');
+        // Fall back to in-memory only mode
+        try {
+          const sampleFiles = await loadSampleFiles();
+          setFiles(sampleFiles);
+          setActiveFilePath('/main.usda');
+          setOpenFilePaths(['/main.usda']);
+        } catch (error) {
+          console.error('Failed to load sample files:', error);
+        } finally {
+          setIsLoading(false);
+        }
+        return;
+      }
+
       try {
-        const hasFiles = await hasStoredFiles();
+        const hasFiles = await hasOPFSFiles();
 
         if (hasFiles) {
-          // Load from IndexedDB
-          const storedFiles = await loadFilesFromStorage();
+          // Load from OPFS
+          const storedFiles = await loadAllFilesFromOPFS();
+          console.log('[WorkspaceStore] Loaded files from OPFS:', storedFiles.map(f => f.path));
           const map = new Map<string, VirtualFile>();
           for (const file of storedFiles) {
             map.set(file.path, file);
@@ -104,15 +123,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             setOpenFilePaths([firstPath]);
           }
         } else {
-          // Load sample files from public folder and save to IndexedDB
+          // Load sample files from public folder and save to OPFS
           const sampleFiles = await loadSampleFiles();
+          console.log('[WorkspaceStore] Loaded sample files:', Array.from(sampleFiles.keys()));
           setFiles(sampleFiles);
           setActiveFilePath('/main.usda');
           setOpenFilePaths(['/main.usda']);
 
-          // Save sample files to IndexedDB
+          // Save sample files to OPFS
           for (const file of sampleFiles.values()) {
-            await saveFileToStorage(file);
+            console.log('[WorkspaceStore] Saving to OPFS:', file.path);
+            await saveFileToOPFS(file);
           }
         }
       } catch (error) {
@@ -156,8 +177,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
-    // Save to IndexedDB
-    saveFileToStorage(newFile).catch(console.error);
+    // Save to OPFS
+    saveFileToOPFS(newFile).catch(console.error);
 
     // Auto-open the new file
     setOpenFilePaths((prev) => {
@@ -184,8 +205,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         lastModified: Date.now(),
       };
 
-      // Save to IndexedDB
-      saveFileToStorage(updatedFile).catch(console.error);
+      // Save to OPFS
+      saveFileToOPFS(updatedFile).catch(console.error);
 
       const next = new Map(prev);
       next.set(path, updatedFile);
@@ -201,8 +222,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
-    // Delete from IndexedDB
-    deleteFileFromStorage(path).catch(console.error);
+    // Delete from OPFS
+    deleteFileFromOPFS(path).catch(console.error);
 
     // Remove from open files
     setOpenFilePaths((prev) => prev.filter((p) => p !== path));
@@ -233,9 +254,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         lastModified: Date.now(),
       };
 
-      // Delete old file from IndexedDB and save new one
-      deleteFileFromStorage(oldPath).catch(console.error);
-      saveFileToStorage(renamedFile).catch(console.error);
+      // Delete old file from OPFS and save new one
+      deleteFileFromOPFS(oldPath).catch(console.error);
+      saveFileToOPFS(renamedFile).catch(console.error);
 
       const next = new Map(prev);
       next.delete(oldPath);
@@ -295,8 +316,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         active: !file.active,
       };
 
-      // Save to IndexedDB
-      saveFileToStorage(updatedFile).catch(console.error);
+      // Save to OPFS
+      saveFileToOPFS(updatedFile).catch(console.error);
 
       const next = new Map(prev);
       next.set(path, updatedFile);
@@ -335,7 +356,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // Clear all files from storage
   const clearAllFiles = useCallback(async () => {
-    await clearStorage();
+    await clearOPFS();
     setFiles(new Map());
     setActiveFilePath(null);
     setOpenFilePaths([]);
@@ -344,16 +365,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // Reset to default files (load from sample files)
   const resetToDefaults = useCallback(async () => {
-    await clearStorage();
+    await clearOPFS();
     const sampleFiles = await loadSampleFiles();
     setFiles(sampleFiles);
     setActiveFilePath('/main.usda');
     setOpenFilePaths(['/main.usda']);
     setErrorsState([]);
 
-    // Save sample files to IndexedDB
+    // Save sample files to OPFS
     for (const file of sampleFiles.values()) {
-      await saveFileToStorage(file);
+      await saveFileToOPFS(file);
     }
   }, []);
 
