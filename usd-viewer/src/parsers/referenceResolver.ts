@@ -38,7 +38,11 @@ function clonePrim(prim: ParsedPrim): ParsedPrim {
 // Filter out inactive prims from the tree
 function filterActivePrims(prims: ParsedPrim[]): ParsedPrim[] {
   return prims
-    .filter((prim) => prim.active !== false) // Keep prims where active is undefined or true
+    .filter((prim) => {
+      const isActive = prim.active !== false;
+      console.log(`[filterActivePrims] Prim "${prim.name}" - active: ${prim.active}, isActive: ${isActive}`);
+      return isActive; // Keep prims where active is undefined or true
+    })
     .map((prim) => ({
       ...prim,
       children: prim.children ? filterActivePrims(prim.children) : undefined,
