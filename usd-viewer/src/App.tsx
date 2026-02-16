@@ -2,7 +2,8 @@ import { useCallback, useState, useRef, useMemo } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { UsdaEditor } from './components/UsdaEditor';
 import { UsdViewer } from './components/UsdViewer';
-import { FileToolbar, downloadAsFile } from './components/FileToolbar';
+import { FileToolbar } from './components/FileToolbar';
+import { downloadAsFile, downloadAllFilesAsZip } from './utils/fileUtils';
 import { FileTree } from './components/FileTree/FileTree';
 import { FileTabs } from './components/FileTabs/FileTabs';
 import { ErrorPanel } from './components/ErrorPanel';
@@ -93,6 +94,15 @@ function App() {
     }
   }, [activeFile]);
 
+  const handleExportAll = useCallback(async () => {
+    try {
+      await downloadAllFilesAsZip(files, 'usd-files.zip');
+    } catch (error) {
+      console.error('Failed to export all files:', error);
+      alert('Failed to export all files. Please try again.');
+    }
+  }, [files]);
+
   const handleResetStorage = useCallback(async () => {
     if (window.confirm('Reset to default files? All changes will be lost.')) {
       await resetToDefaults();
@@ -164,6 +174,7 @@ function App() {
           currentFilename={activeFilename}
           onImport={handleImport}
           onExport={handleExport}
+          onExportAll={handleExportAll}
           onRecordVideo={handleRecordVideo}
           onResetStorage={handleResetStorage}
           hasAnimation={animationInfo.hasAnimation}
