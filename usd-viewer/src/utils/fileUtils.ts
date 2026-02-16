@@ -1,3 +1,6 @@
+import JSZip from 'jszip';
+import type { VirtualFile } from '../types/virtualFileSystem';
+
 export async function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -45,4 +48,29 @@ export function getFileExtension(filename: string): string {
 export function isValidUsdaFile(filename: string): boolean {
   const ext = getFileExtension(filename);
   return ext === 'usda' || ext === 'usd';
+}
+
+/**
+ * Download all files as a ZIP archive with directory structure preserved
+ */
+export async function downloadAllFilesAsZip(
+  files: Map<string, VirtualFile>,
+  zipFilename: string = 'usd-files.zip'
+): Promise<void> {
+  const zip = new JSZip();
+
+  // Add each file to the ZIP, preserving directory structure
+  for (const [path, file] of files) {
+    // Remove leading slash if present
+    const normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+
+    // Add file to ZIP
+    zip.file(normalizedPath, file.content);
+  }
+
+  // Generate ZIP file
+  const blob = await zip.generateAsync({ type: 'blob' });
+
+  // Download the ZIP file
+  downloadBlob(blob, zipFilename);
 }

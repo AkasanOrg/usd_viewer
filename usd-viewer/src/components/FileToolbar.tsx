@@ -1,10 +1,11 @@
 import { useRef, useCallback } from 'react';
-import { downloadAsFile, isValidUsdaFile } from '../utils/fileUtils';
+import { isValidUsdaFile } from '../utils/fileUtils';
 
 interface FileToolbarProps {
   currentFilename: string;
   onImport: (files: FileList) => void;
   onExport: () => void;
+  onExportAll: () => void;
   onRecordVideo: () => void;
   onResetStorage: () => void;
   hasAnimation: boolean;
@@ -16,6 +17,7 @@ export function FileToolbar({
   currentFilename,
   onImport,
   onExport,
+  onExportAll,
   onRecordVideo,
   onResetStorage,
   hasAnimation,
@@ -72,9 +74,16 @@ export function FileToolbar({
       <button
         className="toolbar-button"
         onClick={onExport}
-        title={`Export as ${currentFilename}`}
+        title={`Export current file as ${currentFilename}`}
       >
-        Export
+        Export Current
+      </button>
+      <button
+        className="toolbar-button"
+        onClick={onExportAll}
+        title="Export all files as ZIP"
+      >
+        Export All
       </button>
       <button
         className={`toolbar-button ${isRecording ? 'recording' : ''}`}
@@ -101,5 +110,3 @@ export function FileToolbar({
     </div>
   );
 }
-
-export { downloadAsFile };
